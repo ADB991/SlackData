@@ -4,11 +4,11 @@ from collections import namedtuple
 
 from slackclient import SlackClient
 
-# Timezone examples
+# this 
 UTC_TIMEZONE = datetime.timezone(datetime.timedelta(hours=0), name='UTC')
 NZ_TIMEZONE = datetime.timezone(datetime.timedelta(hours=12), name='UTC+12')
 
-# Definitions of internal data-types and functions to convert to them.
+# Definitions of internal data-types and functions to convert to them
 Team = namedtuple('Team', ['id', 'name', 'domain', 'email_domain'])
 Channel = namedtuple('Channel', ['id', 'name','creation_ts', 'creator_id', 'users'])
 Message = namedtuple('Message', ['ts', 'type'])
@@ -97,7 +97,7 @@ class Client(SlackClient):
         call = super().api_call(api_string, **kwargs)
         if call['ok']: return call
         else:
-            print('Something went wrong:', call['error'])
+            print('\n\nSomething went wrong:', call['error'])
             return None
             
     def display_team_info(self):
@@ -133,8 +133,13 @@ class HistoryClient(Client):
     
     def __init__(self, token_path, timezone=UTC_TIMEZONE):
         super().__init__(token_path)
-        self.message_history = None #This will store the message history once accessed
         self.timezone = timezone
+        # Variables to be filled by method calls:
+        self.histories = None           # list of lists of Message tuples of the channel at the same index in self.channels
+        self.message_history = None     # dictionnary: key is channel id, value is the correpsonding list in self.histories
+        self.channels_info = None       # list of dictionnaires containing coarse info about each channel
+        self.daily_dates = None         # list of string dates for each day in the past 3 months
+        self.message_timeseries = None  # dictionnary: key is channel name, value is a list of number of messages per day
     
     def __repr__(self):
         return 'HistoryClient for {} slack, {} timezone.'.format(self.team.name, self.tz.tzname())
@@ -153,7 +158,10 @@ class HistoryClient(Client):
             new = [message_obj_to_tuple(message) for message in call['messages']]
             history = [m for sublist in [new, history] for m in sublist if m is not None]
             if not call['has_more']: break
-            else: oldest = call['latest']
+            try:
+                oldest = call['latest']
+            except:
+                break
         return history
     
     def get_message_history(self, start_ts=1.0):
@@ -177,8 +185,6 @@ class HistoryClient(Client):
         self.message_history ={ chan_id: history
                                    for chan_id, history in zip(self.channel_ids(), histories)}
         self.histories = histories
-
-        return self.message_history
 
     
     def get_message_stats(self):
@@ -215,3 +221,23 @@ class HistoryClient(Client):
                 }
             )
         self.channels_info = channels_info
+        
+        
+    def get_message_timeseries(self):
+        '''Returns a dictionary of lists'''
+        now = datetime.datetime.now(tz=self.timezone)
+        today = datetime.datetime(now.year, now.month, now.day, tzinfo=self.timezone)
+        
+        daily_dates = [today - i*datetime.timedelta(days=1) for i in range(31*3+1,1,-1)]
+        daily_timestamps = [date.timestamp() for date in daily_dates]
+        
+        message_timeseries = {}
+        for chan in self.channels:
+            history = self.message_history[chan.id]
+            timeseries = []
+            for start, end in zip(daily_timestamps, daily_timestamps[1:]):
+                timeseries.append(count(history, 'message', start_time=start, end_time=end))
+            message_timeseries[chan.name] = timeseries
+        
+        self.message_timeseries = message_timeseries
+        self.daily_dates = [str(day.date()) for day in daily_dates[:-1]]

@@ -5,10 +5,11 @@ import datetime
 from custom_slack_client import HistoryClient
 
 TOKEN_PATH = 'slack_api_token.txt'
-OVERVIEW_PATH =  'slack_data.csv'
+OVERVIEW_PATH =  'channel_data.csv'
+TIMESERIES_PATH = 'timeseries.csv'
 
 
-def write_to_csv(dic_list, keys, filename):
+def save_dicts(dic_list, keys, filename):
     ''' Writes the info contained in a list of dictionnaries
         to a csv file, one line per dictionnary, one column per key.
         keys is a list of the keys whose values you want to save.
@@ -17,6 +18,16 @@ def write_to_csv(dic_list, keys, filename):
         dict_writer = csv.DictWriter(csv_file, keys)
         dict_writer.writeheader()
         dict_writer.writerows(dic_list)
+        
+def save_timeseries(header, timeseries, filename):
+    ''' Save the timeseries results to a csv file
+        the first row being the header, then one row per timeseries.
+    '''
+    with open(filename, 'w') as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(header)
+        for line in timeseries:
+            writer.writerow(line)
 
 def error_mess(m):
     message  = '\n---------------------\n'
@@ -78,7 +89,7 @@ def main():
     
     client = HistoryClient(TOKEN_PATH, timezone=timezone)
     client.display_team_info()
-    print('Collecting data.... This can take a few minutes, see you later')
+    print('Collecting data.... This can take a few minutes, see you later.')
     
     start_ts = 0.1
     if months_back is not None:
@@ -89,10 +100,11 @@ def main():
         client.get_message_stats()
     except Exception as e:
         error_mess(str(e))
+        raise e
     else:
         print('Data collection successful!')
-    
-        keys = ['id','name','created','created_ts','members','total_messages','total_files',
+        
+        keys = ['id','name','created','created_ts', 'creator', 'members','total_messages','total_files',
                 'total_file_comments',
                 'messages_1month',
                 'files_1month',
@@ -100,9 +112,14 @@ def main():
                 'messages_6month',
                 'files_6month',
                 'file_comments_6month']
-
-        write_to_csv(client.channels_info, keys, OVERVIEW_PATH)
-        print("Channel data overview saved in '{}'".format(OVERVIEW_PATH)
+        save_dicts(client.channels_info, keys, OVERVIEW_PATH)
+        print("Channel data overview saved in '{}'".format(OVERVIEW_PATH))
+        
+        client.get_message_timeseries()     
+        header = ['']+client.daily_dates
+        lines = [[key]+value for key, value in client.message_timeseries.items()]
+        save_timeseries(header, lines, TIMESERIES_PATH)
+        print("Channel timeseries saved in '{}'".format(TIMESERIES_PATH))
     
     
 if __name__ == '__main__':

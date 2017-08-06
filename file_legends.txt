@@ -1,0 +1,18 @@
+Legend for channel_data.csv file
+
+- id			: unique channel id, used internally by Slack and the API
+- name			: the channel's current name
+- created		: the date of the channel's creation (depends on the timezone used)
+- created_ts	: the Unix timestamp of the channel's creation (independent of timezone)
+- creator		: the current username for the creator of the channel
+- members		: the number of members in the channel
+- total_messages: the total number of messages the script found in the channel
+- total_files	: the total number of files found in the channel
+- total_file_
+  comments		: the total number of comments on files found in the channel
+- x_ymonth		: the number of x found in the channel that were younger than y months
+
+NB: what messages/files/comments the script finds depends on two things:
+	- is your slack free or paid? Free slacks only give you access to the last three
+	  three months of activity, so total_messages = messages_1month = messages_6month
+	- what arguments you passed to the script when you called it.
